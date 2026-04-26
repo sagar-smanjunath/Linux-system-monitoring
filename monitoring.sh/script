@@ -1,0 +1,68 @@
+#Monitoring Script
+
+#!/bin/bash
+
+# ---------- CONFIG ----------
+CPU_THRESHOLD=70
+MEM_THRESHOLD=70
+DISK_THRESHOLD=80
+
+LOG_FILE="$HOME/sys_monitor.log"
+
+# ---------- GET VALUES ----------
+
+# CPU usage
+cpu_idle=$(mpstat 1 1 | awk '/Average/ {print $NF}')
+cpu_usage=$(echo "100 - $cpu_idle" | bc)
+cpu_int=${cpu_usage%.*}
+
+# Memory usage
+mem_usage=$(free | awk '/Mem/ {printf("%.0f"), $3/$2 * 100}')
+
+# Disk usage
+disk_usage=$(df / | awk 'NR==2 {print $5}' | tr -d '%')
+
+# ---------- STATUS ----------
+cpu_status="OK"
+mem_status="OK"
+disk_status="OK"
+
+# ---------- ALERTING + STATUS CHECK ----------
+
+if (( cpu_int > CPU_THRESHOLD )); then
+    cpu_status="HIGH"
+    echo "ALERT: CPU usage is HIGH ($cpu_usage%)"
+    echo "$(date) | ALERT: CPU HIGH ($cpu_usage%)" >> $LOG_FILE
+fi
+
+if (( mem_usage > MEM_THRESHOLD )); then
+    mem_status="HIGH"
+    echo "ALERT: Memory usage is HIGH ($mem_usage%)"
+    echo "$(date) | ALERT: MEMORY HIGH ($mem_usage%)" >> $LOG_FILE
+fi
+
+if (( disk_usage > DISK_THRESHOLD )); then
+    disk_status="HIGH"
+    echo "ALERT: Disk usage is HIGH ($disk_usage%)"
+    echo "$(date) | ALERT: DISK HIGH ($disk_usage%)" >> $LOG_FILE
+fi
+
+# ---------- REPORT ----------
+echo "========================================="
+echo "        SYSTEM HEALTH REPORT"
+echo "========================================="
+echo "Host       : $(hostname)"
+echo "Date       : $(date)"
+echo "-----------------------------------------"
+
+printf "%-10s %-10s %-10s\n" "RESOURCE" "USAGE(%)" "STATUS"
+echo "-----------------------------------------"
+
+printf "%-10s %-10s %-10s\n" "CPU" "$cpu_usage" "$cpu_status"
+printf "%-10s %-10s %-10s\n" "MEMORY" "$mem_usage" "$mem_status"
+printf "%-10s %-10s %-10s\n" "DISK" "$disk_usage" "$disk_status"
+
+echo "-----------------------------------------"
+
+# ---------- LOG ----------
+echo "$(date) | CPU:$cpu_usage% MEM:$mem_usage% DISK:$disk_usage%" >> $LOG_FILE
